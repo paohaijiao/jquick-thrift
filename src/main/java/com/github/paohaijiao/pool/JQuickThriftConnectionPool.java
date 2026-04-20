@@ -1,5 +1,6 @@
 package com.github.paohaijiao.pool;
 
+import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.config.JQuickGenericObjectPoolConfig;
 import com.github.paohaijiao.enums.JQuickProtocolType;
 import com.github.paohaijiao.enums.JQuickTransportType;
@@ -12,9 +13,9 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class JQuickThriftConnectionPool<T> implements AutoCloseable {
 
-    private final GenericObjectPool<JQuickThriftUtil.ThriftClient<T>> pool;
+    private final GenericObjectPool<JQuickThriftClient<T>> pool;
 
-    private final ConcurrentHashMap<String, GenericObjectPool<JQuickThriftUtil.ThriftClient<T>>> poolMap = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, GenericObjectPool<JQuickThriftClient<T>>> poolMap = new ConcurrentHashMap<>();
 
     public JQuickThriftConnectionPool(Class<T> clientClass, String host, int port, JQuickProtocolType protocolType, JQuickTransportType transportType, GenericObjectPoolConfig config) {
         JQuickThriftClientPoolFactory<T> factory = new JQuickThriftClientPoolFactory<>(clientClass, host, port, protocolType, transportType);
@@ -24,14 +25,14 @@ public class JQuickThriftConnectionPool<T> implements AutoCloseable {
     /**
      * 获取连接
      */
-    public JQuickThriftUtil.ThriftClient<T> borrowClient() throws Exception {
+    public JQuickThriftClient<T> borrowClient() throws Exception {
         return pool.borrowObject();
     }
 
     /**
      * 归还连接
      */
-    public void returnClient(JQuickThriftUtil.ThriftClient<T> client) {
+    public void returnClient(JQuickThriftClient<T> client) {
         if (client != null) {
             pool.returnObject(client);
         }
@@ -41,7 +42,7 @@ public class JQuickThriftConnectionPool<T> implements AutoCloseable {
      * 执行操作并自动归还连接
      */
     public <R> R execute(JQuickThriftUtil.ThriftCallable<T, R> callable) throws Exception {
-        JQuickThriftUtil.ThriftClient<T> client = null;
+        JQuickThriftClient<T> client = null;
         try {
             client = borrowClient();
             return callable.call(client.getClient());

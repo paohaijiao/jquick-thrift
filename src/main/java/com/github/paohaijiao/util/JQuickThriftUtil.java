@@ -91,26 +91,4 @@ public class JQuickThriftUtil {
     public interface ThriftCallable<T, R> {
         R call(T client) throws Exception;
     }
-
-    /**
-     * Thrift 客户端包装类
-     */
-    public static class ThriftClient<T> implements AutoCloseable {
-        private final T client;
-        private final TTransport transport;
-
-        public ThriftClient(T client, TTransport transport) {
-            this.client = client;
-            this.transport = transport;
-        }
-
-        public T getClient() {
-            return client;
-        }
-
-        @Override
-        public void close() {
-            closeQuietly(transport);
-        }
-    }
 }

@@ -78,19 +78,9 @@ public class JQuickDynamicThriftServiceManager {
     /**
      * 创建连接池
      */
-    private <T extends TServiceClient> void createConnectionPool(
-            String serviceName,
-            Class<T> clientClass,
-            JQuickThriftServiceConfig config) {
+    private <T extends TServiceClient> void createConnectionPool(String serviceName, Class<T> clientClass, JQuickThriftServiceConfig config) {
 
-        JQuickThriftConnectionPool<T> pool = new JQuickThriftConnectionPool<>(
-                clientClass,
-                config.getHost(),
-                config.getPort(),
-                BINARY,
-                FRAMED,
-                createPoolConfig(config)
-        );
+        JQuickThriftConnectionPool<T> pool = new JQuickThriftConnectionPool<>(clientClass, config.getHost(), config.getPort(), BINARY, FRAMED, createPoolConfig(config));
 
         connectionPools.put(serviceName, pool);
     }
@@ -104,7 +94,6 @@ public class JQuickDynamicThriftServiceManager {
         if (pool == null) {
             throw new RuntimeException("未找到服务: " + serviceName);
         }
-
         try {
             return pool.borrowClient().getClient();
         } catch (Exception e) {

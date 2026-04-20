@@ -1,5 +1,6 @@
 package com.github.paohaijiao.factory;
 
+import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.enums.JQuickProtocolType;
 import com.github.paohaijiao.enums.JQuickTransportType;
 import com.github.paohaijiao.util.JQuickThriftUtil;
@@ -18,7 +19,7 @@ import java.io.IOException;
 /**
  * Thrift 客户端连接池工厂
  */
-public class JQuickThriftClientPoolFactory<T> extends BasePooledObjectFactory<JQuickThriftUtil.ThriftClient<T>> {
+public class JQuickThriftClientPoolFactory<T> extends BasePooledObjectFactory<JQuickThriftClient<T>> {
 
     private final Class<T> clientClass;
 
@@ -39,10 +40,10 @@ public class JQuickThriftClientPoolFactory<T> extends BasePooledObjectFactory<JQ
     }
 
     @Override
-    public JQuickThriftUtil.ThriftClient<T> create() throws Exception {
+    public JQuickThriftClient<T> create() throws Exception {
         T client = JQuickThriftUtil.createClient(clientClass, host, port, protocolType, transportType);
         TTransport transport = createTransportForClient();
-        return new JQuickThriftUtil.ThriftClient<>(client, transport);
+        return new JQuickThriftClient<>(client, transport);
     }
 
     private TTransport createTransportForClient() throws TException, IOException {
@@ -61,17 +62,17 @@ public class JQuickThriftClientPoolFactory<T> extends BasePooledObjectFactory<JQ
     }
 
     @Override
-    public PooledObject<JQuickThriftUtil.ThriftClient<T>> wrap(JQuickThriftUtil.ThriftClient<T> client) {
+    public PooledObject<JQuickThriftClient<T>> wrap(JQuickThriftClient<T> client) {
         return new DefaultPooledObject<>(client);
     }
 
     @Override
-    public void destroyObject(PooledObject<JQuickThriftUtil.ThriftClient<T>> p) {
+    public void destroyObject(PooledObject<JQuickThriftClient<T>> p) {
         p.getObject().close();
     }
 
     @Override
-    public boolean validateObject(PooledObject<JQuickThriftUtil.ThriftClient<T>> p) {
+    public boolean validateObject(PooledObject<JQuickThriftClient<T>> p) {
         return p.getObject() != null;
     }
 }

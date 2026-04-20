@@ -13,7 +13,6 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.github.paohaijiao.enums.JQuickLoadBalanceStrategy.*;
 
 /**
  * 服务路由器 - 支持多种负载均衡策略
@@ -82,14 +81,12 @@ public class JQuickServiceRouter {
 
         int randomWeight = ThreadLocalRandom.current().nextInt(totalWeight);
         int currentWeight = 0;
-
         for (JQuickThriftServiceProvider instance : instances) {
             currentWeight += getPriorityWeight(instance.getClass());
             if (randomWeight < currentWeight) {
                 return instance;
             }
         }
-
         return instances.get(0);
     }
 

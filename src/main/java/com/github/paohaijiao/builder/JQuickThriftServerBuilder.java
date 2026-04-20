@@ -1,7 +1,7 @@
 package com.github.paohaijiao.builder;
 
 import com.github.paohaijiao.enums.JQuickServerType;
-import com.github.paohaijiao.util.JQuickThriftUtil;
+import org.apache.thrift.TProcessor;
 import org.apache.thrift.server.*;
 import org.apache.thrift.transport.TNonblockingServerSocket;
 import org.apache.thrift.transport.TServerSocket;
@@ -11,7 +11,7 @@ import org.apache.thrift.transport.TTransportException;
 /**
  * Thrift 服务端构建器
  */
-public class JQuickThriftServerBuilder<T> {
+public class JQuickThriftServerBuilder<T extends TProcessor> {
 
     private final T processor;
     private int port = 9090;
@@ -24,7 +24,7 @@ public class JQuickThriftServerBuilder<T> {
         this.processor = processor;
     }
 
-    public static <T> JQuickThriftServerBuilder<T> builder(T processor) {
+    public static <T extends TProcessor> JQuickThriftServerBuilder<T> builder(T processor) {
         return new JQuickThriftServerBuilder<>(processor);
     }
 
@@ -53,14 +53,12 @@ public class JQuickThriftServerBuilder<T> {
     public TServer build() throws TTransportException {
         TServerTransport serverTransport = new TServerSocket(port);
         TServer server;
-
         switch (serverType) {
             case SIMPLE:
                 TServer.Args simpleArgs = new TServer.Args(serverTransport);
                 simpleArgs.processor(processor);
                 server = new TSimpleServer(simpleArgs);
                 break;
-
             case THREAD_POOL:
                 TThreadPoolServer.Args threadPoolArgs = new TThreadPoolServer.Args(serverTransport);
                 threadPoolArgs.processor(processor);
@@ -78,11 +76,11 @@ public class JQuickThriftServerBuilder<T> {
 
             case HS_HA:
                 TNonblockingServerSocket hsHaSocket = new TNonblockingServerSocket(port);
-                THsHaServer.Args hsHaArgs = new THsHaServer.Args(hsHaSocket);
-                hsHaArgs.processor(processor);
-                hsHaArgs.selectorThreads(selectorThreads);
-                hsHaArgs.workerThreads(maxWorkerThreads);
-                server = new THsHaServer(hsHaArgs);
+                TThreadedSelectorServer.Args selectorArgs = new TThreadedSelectorServer.Args(hsHaSocket);
+                selectorArgs.processor(processor);
+                selectorArgs.selectorThreads(selectorThreads);
+                selectorArgs.workerThreads(maxWorkerThreads);
+                server = new TThreadedSelectorServer(selectorArgs);
                 break;
 
             default:
