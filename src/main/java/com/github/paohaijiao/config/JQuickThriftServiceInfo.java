@@ -224,12 +224,7 @@ public class JQuickThriftServiceInfo implements Serializable {
 
     @Override
     public String toString() {
-        return String.format(
-                "ThriftServiceInfo{name='%s', version='%s', endpoint='%s', enabled=%s, " +
-                        "calls=%d, successRate=%.2f%%, avgResponseTime=%.2fms, healthy=%s}",
-                serviceName, version, getEndpoint(), enabled,
-                totalCalls, getSuccessRate(), avgResponseTime, isHealthy()
-        );
+        return String.format("ThriftServiceInfo{name='%s', version='%s', endpoint='%s', enabled=%s, " + "calls=%d, successRate=%.2f%%, avgResponseTime=%.2fms, healthy=%s}", serviceName, version, getEndpoint(), enabled, totalCalls, getSuccessRate(), avgResponseTime, isHealthy());
     }
 
     /**

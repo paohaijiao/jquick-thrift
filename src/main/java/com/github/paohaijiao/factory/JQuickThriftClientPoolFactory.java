@@ -21,9 +21,13 @@ import java.io.IOException;
 public class JQuickThriftClientPoolFactory<T> extends BasePooledObjectFactory<JQuickThriftUtil.ThriftClient<T>> {
 
     private final Class<T> clientClass;
+
     private final String host;
+
     private final int port;
+
     private final JQuickProtocolType protocolType;
+
     private final JQuickTransportType transportType;
 
     public JQuickThriftClientPoolFactory(Class<T> clientClass, String host, int port, JQuickProtocolType protocolType, JQuickTransportType transportType) {

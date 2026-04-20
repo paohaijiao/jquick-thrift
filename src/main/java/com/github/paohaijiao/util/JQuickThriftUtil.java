@@ -85,25 +85,6 @@ public class JQuickThriftUtil {
     }
 
     /**
-     * 带重试的客户端调用
-     */
-    public static <T, R> R callWithRetry(ThriftClient<T> client, ThriftCallable<T, R> callable, int maxRetries, long retryDelayMs) throws Exception {
-        Exception lastException = null;
-        for (int i = 0; i <= maxRetries; i++) {
-            try {
-                return callable.call(client);
-            } catch (Exception e) {
-                lastException = e;
-                if (i < maxRetries) {
-                    TimeUnit.MILLISECONDS.sleep(retryDelayMs);
-                }
-            }
-        }
-
-        throw new RuntimeException("调用失败，已重试 " + maxRetries + " 次", lastException);
-    }
-
-    /**
      * 客户端调用接口
      */
     @FunctionalInterface

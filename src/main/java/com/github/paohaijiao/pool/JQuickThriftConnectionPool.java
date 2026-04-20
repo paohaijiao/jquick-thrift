@@ -1,5 +1,8 @@
 package com.github.paohaijiao.pool;
 
+import com.github.paohaijiao.config.JQuickGenericObjectPoolConfig;
+import com.github.paohaijiao.enums.JQuickProtocolType;
+import com.github.paohaijiao.enums.JQuickTransportType;
 import com.github.paohaijiao.factory.JQuickThriftClientPoolFactory;
 import com.github.paohaijiao.util.JQuickThriftUtil;
 import org.apache.commons.pool2.impl.GenericObjectPool;
@@ -13,10 +16,8 @@ public class JQuickThriftConnectionPool<T> implements AutoCloseable {
 
     private final ConcurrentHashMap<String, GenericObjectPool<JQuickThriftUtil.ThriftClient<T>>> poolMap = new ConcurrentHashMap<>();
 
-    public JQuickThriftConnectionPool(Class<T> clientClass, String host, int port, JQuickThriftUtil.ProtocolType protocolType, JQuickThriftUtil.TransportType transportType, GenericObjectPoolConfig config) {
-        JQuickThriftClientPoolFactory<T> factory = new JQuickThriftClientPoolFactory<>(
-                clientClass, host, port, protocolType, transportType
-        );
+    public JQuickThriftConnectionPool(Class<T> clientClass, String host, int port, JQuickProtocolType protocolType, JQuickTransportType transportType, GenericObjectPoolConfig config) {
+        JQuickThriftClientPoolFactory<T> factory = new JQuickThriftClientPoolFactory<>(clientClass, host, port, protocolType, transportType);
         this.pool = new GenericObjectPool<>(factory, config);
     }
 
@@ -68,8 +69,8 @@ public class JQuickThriftConnectionPool<T> implements AutoCloseable {
     /**
      * 创建默认配置
      */
-    public static GenericObjectPoolConfig createDefaultConfig() {
-        GenericObjectPoolConfig config = new GenericObjectPoolConfig();
+    public static JQuickGenericObjectPoolConfig createDefaultConfig() {
+        JQuickGenericObjectPoolConfig config = new JQuickGenericObjectPoolConfig();
         config.setMaxTotal(50);           // 最大连接数
         config.setMaxIdle(20);            // 最大空闲连接
         config.setMinIdle(5);             // 最小空闲连接

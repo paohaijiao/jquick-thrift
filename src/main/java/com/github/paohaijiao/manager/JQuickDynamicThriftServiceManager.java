@@ -1,5 +1,7 @@
 package com.github.paohaijiao.manager;
 
+import com.github.paohaijiao.callable.JQuickThriftCallable;
+import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.config.JQuickThriftServiceConfig;
 import com.github.paohaijiao.config.JQuickThriftServiceInfo;
 import com.github.paohaijiao.console.JConsole;
@@ -12,9 +14,11 @@ import com.github.paohaijiao.spi.anno.Priority;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import org.apache.thrift.TServiceClient;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.TimeUnit;
 
 import static com.github.paohaijiao.enums.JQuickProtocolType.BINARY;
 import static com.github.paohaijiao.enums.JQuickTransportType.FRAMED;
@@ -29,8 +33,11 @@ public class JQuickDynamicThriftServiceManager {
     private static final JQuickDynamicThriftServiceManager INSTANCE = new JQuickDynamicThriftServiceManager();
 
     private final Map<String, JQuickThriftServiceProvider> serviceProviders = new ConcurrentHashMap<>();
+
     private final Map<String, Object> processors = new ConcurrentHashMap<>();
+
     private final Map<String, Class<? extends TServiceClient>> clientClasses = new ConcurrentHashMap<>();
+
     private final Map<String, JQuickThriftConnectionPool<?>> connectionPools = new ConcurrentHashMap<>();
 
     private final JConsole console = new JConsole();
@@ -49,16 +56,12 @@ public class JQuickDynamicThriftServiceManager {
     @SuppressWarnings("unchecked")
     private void initialize() {
         console.log(JLogLevel.INFO, "=== 初始化动态 Thrift 服务管理器 ===");
-
-        // 通过 SPI 加载所有服务提供者
         List<JQuickThriftServiceProvider> providers = ServiceLoader.loadServicesByPriority(JQuickThriftServiceProvider.class);
-
         for (JQuickThriftServiceProvider provider : providers) {
             if (!provider.isEnabled()) {
                 console.log(JLogLevel.INFO, "跳过禁用的服务: " + provider.getServiceName());
                 continue;
             }
-
             String serviceName = provider.getServiceName();
             serviceProviders.put(serviceName, provider);
             processors.put(serviceName, provider.getProcessor());
@@ -67,15 +70,8 @@ public class JQuickDynamicThriftServiceManager {
             if (config.isUsePool()) {
                 createConnectionPool(serviceName, provider.getClientClass(), config);
             }
-
-            console.log(JLogLevel.INFO, String.format(
-                    "✓ 加载服务: %s (版本: %s, 优先级: %s, 端口: %d)",
-                    serviceName, provider.getVersion(),
-                    getPriorityLabel(provider.getClass()),
-                    config.getPort()
-            ));
+            console.log(JLogLevel.INFO, String.format("✓ 加载服务: %s (版本: %s, 优先级: %s, 端口: %d)", serviceName, provider.getVersion(), getPriorityLabel(provider.getClass()), config.getPort()));
         }
-
         console.log(JLogLevel.INFO, "=== 服务加载完成，共 " + serviceProviders.size() + " 个服务 ===");
     }
 
@@ -117,22 +113,29 @@ public class JQuickDynamicThriftServiceManager {
     }
 
     /**
-     * 执行服务调用
+     * 带重试的客户端调用 - 修正：传入 client 对象
      */
-    public <T extends TServiceClient, R> R execute(String serviceName,
-                                                   ThriftExecutor<T, R> executor) {
-        JQuickThriftConnectionPool<T> pool = (JQuickThriftConnectionPool<T>) connectionPools.get(serviceName);
-        if (pool == null) {
-            throw new RuntimeException("未找到服务: " + serviceName);
+    public static <T, R> R callWithRetry(T client, JQuickThriftCallable<T, R> callable, int maxRetries, long retryDelayMs) throws Exception {
+        Exception lastException = null;
+        for (int i = 0; i <= maxRetries; i++) {
+            try {
+                return callable.call(client);
+            } catch (Exception e) {
+                lastException = e;
+                if (i < maxRetries) {
+                    TimeUnit.MILLISECONDS.sleep(retryDelayMs);
+                }
+            }
         }
-
-        try {
-            return pool.execute(executor);
-        } catch (Exception e) {
-            throw new RuntimeException("服务调用失败: " + serviceName, e);
-        }
+        throw new RuntimeException("调用失败，已重试 " + maxRetries + " 次", lastException);
     }
 
+    /**
+     * 带重试的客户端调用（使用包装类版本）
+     */
+    public static <T, R> R callWithRetry(JQuickThriftClient<T> thriftClient, JQuickThriftCallable<T, R> callable, int maxRetries, long retryDelayMs) throws Exception {
+        return callWithRetry(thriftClient.getClient(), callable, maxRetries, retryDelayMs);
+    }
     /**
      * 获取所有可用的服务
      */
@@ -146,7 +149,6 @@ public class JQuickDynamicThriftServiceManager {
     public JQuickThriftServiceInfo getServiceInfo(String serviceName) {
         JQuickThriftServiceProvider provider = serviceProviders.get(serviceName);
         if (provider == null) return null;
-
         JQuickThriftServiceInfo info = new JQuickThriftServiceInfo();
         info.setServiceName(serviceName);
         info.setVersion(provider.getVersion());
@@ -161,19 +163,10 @@ public class JQuickDynamicThriftServiceManager {
     public void printAllServices() {
         console.log(JLogLevel.INFO, "=== 已注册的 Thrift 服务 ===");
         List<JQuickThriftServiceProvider> providers = ServiceLoader.loadServicesByPriority(JQuickThriftServiceProvider.class);
-
         for (int i = 0; i < providers.size(); i++) {
             JQuickThriftServiceProvider provider = providers.get(i);
             JQuickThriftServiceConfig config = provider.getConfig();
-            String info = String.format(
-                    "%d. %s (v%s) -> %s:%d [%s]",
-                    i + 1,
-                    provider.getServiceName(),
-                    provider.getVersion(),
-                    config.getHost(),
-                    config.getPort(),
-                    provider.isEnabled() ? "启用" : "禁用"
-            );
+            String info = String.format("%d. %s (v%s) -> %s:%d [%s]", i + 1, provider.getServiceName(), provider.getVersion(), config.getHost(), config.getPort(), provider.isEnabled() ? "启用" : "禁用");
             console.log(JLogLevel.INFO, info);
         }
     }
@@ -183,8 +176,6 @@ public class JQuickDynamicThriftServiceManager {
      */
     public void reload() {
         console.log(JLogLevel.INFO, "重新加载 Thrift 服务...");
-
-        // 关闭所有连接池
         connectionPools.values().forEach(pool -> {
             try {
                 pool.close();
@@ -192,20 +183,15 @@ public class JQuickDynamicThriftServiceManager {
                 console.log(JLogLevel.ERROR, "关闭连接池失败: " + e.getMessage());
             }
         });
-
-        // 清空缓存
-        serviceProviders.clear();
+        serviceProviders.clear();// 清空缓存
         processors.clear();
         clientClasses.clear();
         connectionPools.clear();
-
-        // 重新初始化
-        initialize();
+        initialize();  // 重新初始化
     }
 
     private String getPriorityLabel(Class<?> clazz) {
-        com.github.paohaijiao.spi.anno.Priority priority =
-                clazz.getAnnotation(com.github.paohaijiao.spi.anno.Priority.class);
+        com.github.paohaijiao.spi.anno.Priority priority = clazz.getAnnotation(com.github.paohaijiao.spi.anno.Priority.class);
         if (priority != null) {
             return String.valueOf(priority.value());
         }

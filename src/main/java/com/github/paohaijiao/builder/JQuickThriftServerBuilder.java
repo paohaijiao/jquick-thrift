@@ -1,5 +1,6 @@
 package com.github.paohaijiao.builder;
 
+import com.github.paohaijiao.enums.JQuickServerType;
 import com.github.paohaijiao.util.JQuickThriftUtil;
 import org.apache.thrift.server.*;
 import org.apache.thrift.transport.TNonblockingServerSocket;
@@ -14,7 +15,7 @@ public class JQuickThriftServerBuilder<T> {
 
     private final T processor;
     private int port = 9090;
-    private JQuickThriftUtil.ServerType serverType = JQuickThriftUtil.ServerType.THREAD_POOL;
+    private JQuickServerType serverType =JQuickServerType.THREAD_POOL;
     private int minWorkerThreads = 5;
     private int maxWorkerThreads = 100;
     private int selectorThreads = 2;
@@ -32,7 +33,7 @@ public class JQuickThriftServerBuilder<T> {
         return this;
     }
 
-    public JQuickThriftServerBuilder<T> serverType(JQuickThriftUtil.ServerType serverType) {
+    public JQuickThriftServerBuilder<T> serverType(JQuickServerType serverType) {
         this.serverType = serverType;
         return this;
     }

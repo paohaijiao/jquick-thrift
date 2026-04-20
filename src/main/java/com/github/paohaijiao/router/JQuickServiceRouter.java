@@ -1,6 +1,7 @@
 package com.github.paohaijiao.router;
 
 import com.github.paohaijiao.constants.JQuickThriftPriorityConstants;
+import com.github.paohaijiao.enums.JQuickLoadBalanceStrategy;
 import com.github.paohaijiao.provider.JQuickThriftServiceProvider;
 import com.github.paohaijiao.spi.ServiceLoader;
 import com.github.paohaijiao.spi.anno.Priority;
@@ -24,9 +25,6 @@ public class JQuickServiceRouter {
 
     private final Map<String, AtomicInteger> roundRobinCounters = new HashMap<>();
 
-    public enum LoadBalanceStrategy {
-
-    }
 
     public JQuickServiceRouter() {
         loadServices();
@@ -44,7 +42,7 @@ public class JQuickServiceRouter {
     /**
      * 获取服务实例
      */
-    public JQuickThriftServiceProvider getServiceInstance(String serviceName, LoadBalanceStrategy strategy) {
+    public JQuickThriftServiceProvider getServiceInstance(String serviceName, JQuickLoadBalanceStrategy strategy) {
         List<JQuickThriftServiceProvider> instances = serviceInstances.get(serviceName);
         if (instances == null || instances.isEmpty()) {
             throw new RuntimeException("没有可用的服务实例: " + serviceName);
@@ -53,7 +51,6 @@ public class JQuickServiceRouter {
         if (instances.size() == 1) {
             return instances.get(0);
         }
-
         switch (strategy) {
             case ROUND_ROBIN:
                 return roundRobin(instances);
