@@ -1,30 +1,264 @@
 package com.github.paohaijiao.client;
 
-import org.apache.thrift.transport.TTransport;
+import com.github.paohaijiao.config.JQuickConnectionConfig;
+import com.github.paohaijiao.domain.JQuickServiceInstance;
+import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalence.impl.JQuickRoundRobinLoadBalancer;
+import com.github.paohaijiao.pool.JQuickConnectionStrategy;
+import com.github.paohaijiao.pool.JQuickServiceDiscovery;
+import com.github.paohaijiao.pool.impl.JQuickPooledConnectionStrategy;
+import com.github.paohaijiao.spi.ServiceLoader;
 
-import static com.github.paohaijiao.util.JQuickThriftUtil.closeQuietly;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
+import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
-public class JQuickThriftClient<T> implements AutoCloseable {
+/**
+ * Thrift RPC客户端
+ * 支持负载均衡、连接池、服务发现等高级特性
+ */
+public class JQuickThriftClient {
 
-    private final T client;
+    private final JQuickServiceDiscovery serviceDiscovery;
 
-    private final TTransport transport;
+    private final JQuickLoadBalancer loadBalancer;
 
-    public JQuickThriftClient(T client, TTransport transport) {
-        this.client = client;
-        this.transport = transport;
+    private final JQuickConnectionStrategy<Object> connectionStrategy;
+
+    private final JQuickConnectionConfig connectionConfig;
+
+    private final ConcurrentHashMap<Class<?>, Object> proxyCache;
+
+    private final ConcurrentHashMap<String, List<JQuickServiceInstance>> instanceCache;
+
+    private final AtomicInteger failoverCount;
+
+    private JQuickThriftClient(Builder builder) {
+        this.serviceDiscovery = builder.serviceDiscovery;
+        this.loadBalancer = builder.loadBalancer;
+        this.connectionStrategy = builder.connectionStrategy != null ? (JQuickConnectionStrategy<Object>) builder.connectionStrategy : null;
+        this.connectionConfig = builder.connectionConfig;
+        this.proxyCache = new ConcurrentHashMap<>();
+        this.instanceCache = new ConcurrentHashMap<>();
+        this.failoverCount = new AtomicInteger(0);
+        if (serviceDiscovery != null) {
+            serviceDiscovery.subscribe("*", (serviceName, instances) -> {
+                instanceCache.put(serviceName, instances);
+            });
+        }
     }
 
-    public T getClient() {
-        return client;
+    /**
+     * 获取服务代理
+     */
+    @SuppressWarnings("unchecked")
+    public <T> T getService(Class<T> serviceInterface, String serviceName) {
+        return (T) proxyCache.computeIfAbsent(serviceInterface, key ->
+                Proxy.newProxyInstance(
+                        serviceInterface.getClassLoader(),
+                        new Class[]{serviceInterface},
+                        new ThriftInvocationHandler<>(serviceInterface, serviceName)
+                )
+        );
     }
 
-    public TTransport getTransport() {
-        return transport;
-    }
-
-    @Override
+    /**
+     * 关闭客户端
+     */
     public void close() {
-        closeQuietly(transport);
+        if (serviceDiscovery != null) {
+            serviceDiscovery.close();
+        }
+        if (connectionStrategy != null) {
+            connectionStrategy.close();
+        }
+    }
+
+    /**
+     * 获取统计信息
+     */
+    public Map<String, Object> getStats() {
+        Map<String, Object> stats = new java.util.HashMap<>();
+        stats.put("failoverCount", failoverCount.get());
+        stats.put("proxyCacheSize", proxyCache.size());
+        stats.put("instanceCacheSize", instanceCache.size());
+
+        if (connectionStrategy != null && connectionStrategy.getConnectionPool() != null) {
+            stats.put("activeConnections", connectionStrategy.getConnectionPool().getActiveCount());
+            stats.put("idleConnections", connectionStrategy.getConnectionPool().getIdleCount());
+        }
+
+        return stats;
+    }
+
+    /**
+     * 构建器
+     */
+    public static class Builder {
+        private JQuickServiceDiscovery serviceDiscovery;
+        private JQuickLoadBalancer loadBalancer;
+        private JQuickConnectionStrategy<?> connectionStrategy;
+        private JQuickConnectionConfig connectionConfig = JQuickConnectionConfig.defaultConfig();
+
+        public Builder serviceDiscovery(JQuickServiceDiscovery serviceDiscovery) {
+            this.serviceDiscovery = serviceDiscovery;
+            return this;
+        }
+
+        public Builder loadBalancer(JQuickLoadBalancer loadBalancer) {
+            this.loadBalancer = loadBalancer;
+            return this;
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        public Builder connectionStrategy(JQuickConnectionStrategy<?> connectionStrategy) {
+            this.connectionStrategy = connectionStrategy;
+            return this;
+        }
+
+        public Builder connectionConfig(JQuickConnectionConfig connectionConfig) {
+            this.connectionConfig = connectionConfig;
+            return this;
+        }
+
+        @SuppressWarnings("unchecked")
+        public JQuickThriftClient build() {
+            // 如果没有设置负载均衡器，通过SPI获取最高优先级的
+            if (loadBalancer == null) {
+                loadBalancer = ServiceLoader.getHighestPriorityService(JQuickLoadBalancer.class)
+                        .orElse(new JQuickRoundRobinLoadBalancer());
+            }
+
+            // 如果没有设置连接策略，创建默认连接池策略
+            if (connectionStrategy == null) {
+                connectionStrategy = new JQuickPooledConnectionStrategy<>(connectionConfig);
+            }
+
+            return new JQuickThriftClient(this);
+        }
+    }
+
+    /**
+     * Thrift调用处理器
+     */
+    private class ThriftInvocationHandler<T> implements InvocationHandler {
+
+        private final Class<T> serviceInterface;
+
+        private final String serviceName;
+
+        public ThriftInvocationHandler(Class<T> serviceInterface, String serviceName) {
+            this.serviceInterface = serviceInterface;
+            this.serviceName = serviceName;
+        }
+
+        @Override
+        public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+            if (method.getName().equals("toString")) {
+                return "ThriftProxy[" + serviceName + "]";
+            }
+            if (method.getName().equals("hashCode")) {
+                return hashCode();
+            }
+            if (method.getName().equals("equals")) {
+                return proxy == args[0];
+            }
+
+            // 获取服务实例
+            List<JQuickServiceInstance> instances = getInstances();
+            if (instances == null || instances.isEmpty()) {
+                throw new RuntimeException("No available service instance for: " + serviceName);
+            }
+
+            // 负载均衡选择实例
+            JQuickServiceInstance instance = loadBalancer.select(instances);
+            if (instance == null) {
+                throw new RuntimeException("Failed to select service instance for: " + serviceName);
+            }
+
+            // 执行调用（带重试）
+            return invokeWithRetry(method, args, instance);
+        }
+
+        private Object invokeWithRetry(Method method, Object[] args, JQuickServiceInstance instance)
+                throws Throwable {
+            int maxRetries = connectionConfig.getMaxRetries();
+            Throwable lastException = null;
+            JQuickServiceInstance currentInstance = instance;
+            for (int i = 0; i <= maxRetries; i++) {
+                try {
+                    return doInvoke(method, args, currentInstance);
+                } catch (Exception e) {
+                    lastException = e;
+                    if (i < maxRetries) {
+                        // 标记实例不健康
+                        currentInstance.setHealthy(false);
+                        // 重新获取实例
+                        List<JQuickServiceInstance> instances = getInstances();
+                        if (instances != null && !instances.isEmpty()) {
+                            currentInstance = loadBalancer.select(instances);
+                            failoverCount.incrementAndGet();
+                        } else {
+                            break;
+                        }
+                    }
+                }
+            }
+
+            throw lastException;
+        }
+
+        @SuppressWarnings({"unchecked", "rawtypes"})
+        private Object doInvoke(Method method, Object[] args, JQuickServiceInstance instance)
+                throws Exception {
+            // 获取连接
+            Object connection = connectionStrategy.getConnection(instance, connectionConfig);
+            try {
+                // 通过反射调用Thrift客户端
+                // Thrift生成的Client类名格式: 接口名$Client
+                String clientClassName = serviceInterface.getName();
+                if (!clientClassName.endsWith("$Client")) {
+                    clientClassName = serviceInterface.getName() + "$Client";
+                }
+                Class<?> clientClass = Class.forName(clientClassName);
+
+                // Thrift Client的构造函数接收 TProtocol 参数
+                Object client = clientClass.getConstructor(org.apache.thrift.protocol.TProtocol.class)
+                        .newInstance(connection);
+
+                // 调用方法
+                return method.invoke(client, args);
+            } finally {
+                // 归还连接 - 使用原始类型转换避免泛型问题
+                if (connectionStrategy != null) {
+                    connectionStrategy.returnConnection(instance, connection);
+                }
+            }
+        }
+
+        private List<JQuickServiceInstance> getInstances() {
+            // 先从缓存获取
+            List<JQuickServiceInstance> instances = instanceCache.get(serviceName);
+            if (instances == null && serviceDiscovery != null) {
+                instances = serviceDiscovery.getInstances(serviceName);
+                if (instances != null && !instances.isEmpty()) {
+                    instanceCache.put(serviceName, new java.util.ArrayList<>(instances));
+                }
+            }
+
+            // 过滤健康的实例
+            if (instances != null && !instances.isEmpty()) {
+                instances = instances.stream()
+                        .filter(JQuickServiceInstance::isHealthy)
+                        .collect(Collectors.toList());
+            }
+
+            return instances;
+        }
     }
 }
