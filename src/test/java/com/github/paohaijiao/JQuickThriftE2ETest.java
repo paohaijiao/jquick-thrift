@@ -1,5 +1,9 @@
 package com.github.paohaijiao;
-import com.example.thrift.demo.*;
+
+import com.example.thrift.demo.Response;
+import com.example.thrift.demo.User;
+import com.example.thrift.demo.UserService;
+import com.example.thrift.demo.UserServiceImpl;
 import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.config.JQuickConnectionConfig;
 import com.github.paohaijiao.domain.JQuickServiceInstance;
@@ -9,7 +13,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -86,21 +89,17 @@ public class JQuickThriftE2ETest {
         System.out.println("\n========================================");
         System.out.println("端到端集成测试开始");
         System.out.println("========================================\n");
-
         // 1. 创建服务发现
         serviceDiscovery = new InMemoryServiceDiscovery();
-
         // 2. 启动 Thrift 服务端
         server = new JQuickThriftServer.Builder()
                 .port(TEST_PORT)
                 .registerService(SERVICE_NAME, new UserServiceImpl())
                 .build();
         server.start();
-
         // 等待服务启动
         Thread.sleep(1000);
         System.out.println("✓ 服务端已启动，端口: " + TEST_PORT);
-
         // 3. 注册服务实例到服务发现
         serviceDiscovery.registerInstance(SERVICE_NAME, "localhost", TEST_PORT);
         System.out.println("✓ 服务实例已注册: localhost:" + TEST_PORT);
@@ -154,14 +153,11 @@ public class JQuickThriftE2ETest {
     @Test
     public void testSayHello() throws Exception {
         System.out.println("【测试2】sayHello 方法测试");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
         String result = proxy.sayHello("ThriftClient");
-
         assertNotNull("返回结果不应为null", result);
         assertTrue("结果应包含Hello", result.contains("Hello"));
         assertTrue("结果应包含参数", result.contains("ThriftClient"));
-
         System.out.println("调用结果: " + result);
         System.out.println("✓ sayHello 测试通过");
     }
@@ -172,14 +168,11 @@ public class JQuickThriftE2ETest {
     @Test
     public void testGetUser_Success() throws Exception {
         System.out.println("【测试3】获取存在的用户");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
         User user = proxy.getUser(1);
-
         assertNotNull("用户不应为null", user);
         assertEquals("用户ID应为1", 1, user.getId());
         assertEquals("用户名应为'张三'", "张三", user.getName());
-
         System.out.println("获取到的用户: ID=" + user.getId() +
                 ", 姓名=" + user.getName() +
                 ", 邮箱=" + user.getEmail() +
@@ -193,10 +186,8 @@ public class JQuickThriftE2ETest {
     @Test(expected = Exception.class)
     public void testGetUser_NotFound() throws Exception {
         System.out.println("【测试4】获取不存在的用户（应抛出异常）");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
         proxy.getUser(999);
-
         fail("应该抛出异常");
     }
 
@@ -301,8 +292,6 @@ public class JQuickThriftE2ETest {
         }
         System.out.println("✓ listAllUsers 测试通过");
     }
-
-    // ==================== 高级功能测试 ====================
 
     /**
      * 测试9: 多次调用（验证连接复用）
@@ -410,7 +399,6 @@ public class JQuickThriftE2ETest {
     @Test
     public void testExceptionHandling() throws Exception {
         System.out.println("【测试12】异常处理测试");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
 
         try {
@@ -424,26 +412,19 @@ public class JQuickThriftE2ETest {
 
         System.out.println("✓ 异常处理测试通过");
     }
-
-    // ==================== 性能测试 ====================
-
     /**
      * 测试13: 并发调用测试
      */
     @Test
     public void testConcurrentCalls() throws Exception {
         System.out.println("【测试13】并发调用测试");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
-
         int threadCount = 5;
         int callsPerThread = 20;
         AtomicInteger successCount = new AtomicInteger(0);
         AtomicInteger failCount = new AtomicInteger(0);
-
         Thread[] threads = new Thread[threadCount];
         long startTime = System.currentTimeMillis();
-
         for (int i = 0; i < threadCount; i++) {
             final int threadId = i;
             threads[i] = new Thread(() -> {

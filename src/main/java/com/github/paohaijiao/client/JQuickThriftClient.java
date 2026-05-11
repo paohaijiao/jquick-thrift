@@ -1,5 +1,4 @@
 package com.github.paohaijiao.client;
-
 import com.github.paohaijiao.config.JQuickConnectionConfig;
 import com.github.paohaijiao.domain.JQuickServiceInstance;
 import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
@@ -8,6 +7,7 @@ import com.github.paohaijiao.pool.JQuickConnectionStrategy;
 import com.github.paohaijiao.pool.JQuickServiceDiscovery;
 import com.github.paohaijiao.pool.impl.JQuickPooledConnectionStrategy;
 import com.github.paohaijiao.spi.ServiceLoader;
+import org.apache.thrift.protocol.TProtocol;
 
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
@@ -38,7 +38,7 @@ public class JQuickThriftClient {
 
     private final AtomicInteger failoverCount;
 
-    private JQuickThriftClient(Builder builder) {
+    public JQuickThriftClient(Builder builder) {
         this.serviceDiscovery = builder.serviceDiscovery;
         this.loadBalancer = builder.loadBalancer;
         this.connectionStrategy = builder.connectionStrategy != null ? (JQuickConnectionStrategy<Object>) builder.connectionStrategy : null;
@@ -87,12 +87,10 @@ public class JQuickThriftClient {
         stats.put("failoverCount", failoverCount.get());
         stats.put("proxyCacheSize", proxyCache.size());
         stats.put("instanceCacheSize", instanceCache.size());
-
         if (connectionStrategy != null && connectionStrategy.getConnectionPool() != null) {
             stats.put("activeConnections", connectionStrategy.getConnectionPool().getActiveCount());
             stats.put("idleConnections", connectionStrategy.getConnectionPool().getIdleCount());
         }
-
         return stats;
     }
 
@@ -100,9 +98,13 @@ public class JQuickThriftClient {
      * 构建器
      */
     public static class Builder {
+
         private JQuickServiceDiscovery serviceDiscovery;
+
         private JQuickLoadBalancer loadBalancer;
+
         private JQuickConnectionStrategy<?> connectionStrategy;
+
         private JQuickConnectionConfig connectionConfig = JQuickConnectionConfig.defaultConfig();
 
         public Builder serviceDiscovery(JQuickServiceDiscovery serviceDiscovery) {
@@ -128,17 +130,14 @@ public class JQuickThriftClient {
 
         @SuppressWarnings("unchecked")
         public JQuickThriftClient build() {
-            // 如果没有设置负载均衡器，通过SPI获取最高优先级的
             if (loadBalancer == null) {
                 loadBalancer = ServiceLoader.getHighestPriorityService(JQuickLoadBalancer.class)
                         .orElse(new JQuickRoundRobinLoadBalancer());
             }
 
-            // 如果没有设置连接策略，创建默认连接池策略
             if (connectionStrategy == null) {
                 connectionStrategy = new JQuickPooledConnectionStrategy<>(connectionConfig);
             }
-
             return new JQuickThriftClient(this);
         }
     }
@@ -149,7 +148,6 @@ public class JQuickThriftClient {
     private class ThriftInvocationHandler<T> implements InvocationHandler {
 
         private final Class<T> serviceInterface;
-
         private final String serviceName;
 
         public ThriftInvocationHandler(Class<T> serviceInterface, String serviceName) {
@@ -168,25 +166,18 @@ public class JQuickThriftClient {
             if (method.getName().equals("equals")) {
                 return proxy == args[0];
             }
-
-            // 获取服务实例
-            List<JQuickServiceInstance> instances = getInstances();
+            List<JQuickServiceInstance> instances = getInstances();  // 获取服务实例
             if (instances == null || instances.isEmpty()) {
                 throw new RuntimeException("No available service instance for: " + serviceName);
             }
-
-            // 负载均衡选择实例
-            JQuickServiceInstance instance = loadBalancer.select(instances);
+            JQuickServiceInstance instance = loadBalancer.select(instances);// 负载均衡选择实例
             if (instance == null) {
                 throw new RuntimeException("Failed to select service instance for: " + serviceName);
             }
-
-            // 执行调用（带重试）
-            return invokeWithRetry(method, args, instance);
+            return invokeWithRetry(method, args, instance);// 执行调用（带重试）
         }
 
-        private Object invokeWithRetry(Method method, Object[] args, JQuickServiceInstance instance)
-                throws Throwable {
+        private Object invokeWithRetry(Method method, Object[] args, JQuickServiceInstance instance) throws Throwable {
             int maxRetries = connectionConfig.getMaxRetries();
             Throwable lastException = null;
             JQuickServiceInstance currentInstance = instance;
@@ -196,9 +187,7 @@ public class JQuickThriftClient {
                 } catch (Exception e) {
                     lastException = e;
                     if (i < maxRetries) {
-                        // 标记实例不健康
                         currentInstance.setHealthy(false);
-                        // 重新获取实例
                         List<JQuickServiceInstance> instances = getInstances();
                         if (instances != null && !instances.isEmpty()) {
                             currentInstance = loadBalancer.select(instances);
@@ -214,27 +203,25 @@ public class JQuickThriftClient {
         }
 
         @SuppressWarnings({"unchecked", "rawtypes"})
-        private Object doInvoke(Method method, Object[] args, JQuickServiceInstance instance)
-                throws Exception {
-            // 获取连接
+        private Object doInvoke(Method method, Object[] args, JQuickServiceInstance instance) throws Exception {
+            // 获取连接（TProtocol）
             Object connection = connectionStrategy.getConnection(instance, connectionConfig);
             try {
-                // 通过反射调用Thrift客户端
-                // Thrift生成的Client类名格式: 接口名$Client
-                String clientClassName = serviceInterface.getName();
-                if (!clientClassName.endsWith("$Client")) {
-                    clientClassName = serviceInterface.getName() + "$Client";
+                String serviceInterfaceName = serviceInterface.getName();
+                String baseName = serviceInterfaceName;
+                if (serviceInterfaceName.endsWith("$Iface")) {
+                    baseName = serviceInterfaceName.substring(0, serviceInterfaceName.length() - 6);
                 }
+                String clientClassName = baseName + "$Client";
+                System.out.println("Loading client class: " + clientClassName);
                 Class<?> clientClass = Class.forName(clientClassName);
-
-                // Thrift Client的构造函数接收 TProtocol 参数
-                Object client = clientClass.getConstructor(org.apache.thrift.protocol.TProtocol.class)
-                        .newInstance(connection);
-
-                // 调用方法
+                Object client = clientClass.getConstructor(TProtocol.class).newInstance(connection);
                 return method.invoke(client, args);
+            } catch (ClassNotFoundException e) {
+                throw new RuntimeException("Failed to load Thrift client class. " +
+                        "Please ensure the Thrift service interface is correctly generated. " +
+                        "Expected class: " + e.getMessage(), e);
             } finally {
-                // 归还连接 - 使用原始类型转换避免泛型问题
                 if (connectionStrategy != null) {
                     connectionStrategy.returnConnection(instance, connection);
                 }
@@ -242,7 +229,6 @@ public class JQuickThriftClient {
         }
 
         private List<JQuickServiceInstance> getInstances() {
-            // 先从缓存获取
             List<JQuickServiceInstance> instances = instanceCache.get(serviceName);
             if (instances == null && serviceDiscovery != null) {
                 instances = serviceDiscovery.getInstances(serviceName);
@@ -251,7 +237,6 @@ public class JQuickThriftClient {
                 }
             }
 
-            // 过滤健康的实例
             if (instances != null && !instances.isEmpty()) {
                 instances = instances.stream()
                         .filter(JQuickServiceInstance::isHealthy)
