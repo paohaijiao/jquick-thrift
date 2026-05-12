@@ -4,11 +4,10 @@ import com.github.paohaijiao.domain.JQuickServiceInstance;
 import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
 import com.github.paohaijiao.loadBalence.impl.JQuickRoundRobinLoadBalancer;
 import com.github.paohaijiao.pool.JQuickConnectionStrategy;
-import com.github.paohaijiao.pool.JQuickServiceDiscovery;
+import com.github.paohaijiao.discovery.JQuickServiceDiscovery;
 import com.github.paohaijiao.pool.impl.JQuickPooledConnectionStrategy;
 import com.github.paohaijiao.spi.ServiceLoader;
 import org.apache.thrift.protocol.TProtocol;
-
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
@@ -59,11 +58,7 @@ public class JQuickThriftClient {
     @SuppressWarnings("unchecked")
     public <T> T getService(Class<T> serviceInterface, String serviceName) {
         return (T) proxyCache.computeIfAbsent(serviceInterface, key ->
-                Proxy.newProxyInstance(
-                        serviceInterface.getClassLoader(),
-                        new Class[]{serviceInterface},
-                        new ThriftInvocationHandler<>(serviceInterface, serviceName)
-                )
+                Proxy.newProxyInstance(serviceInterface.getClassLoader(), new Class[]{serviceInterface}, new ThriftInvocationHandler<>(serviceInterface, serviceName))
         );
     }
 
@@ -218,9 +213,7 @@ public class JQuickThriftClient {
                 Object client = clientClass.getConstructor(TProtocol.class).newInstance(connection);
                 return method.invoke(client, args);
             } catch (ClassNotFoundException e) {
-                throw new RuntimeException("Failed to load Thrift client class. " +
-                        "Please ensure the Thrift service interface is correctly generated. " +
-                        "Expected class: " + e.getMessage(), e);
+                throw new RuntimeException("Failed to load Thrift client class. " + "Please ensure the Thrift service interface is correctly generated. " + "Expected class: " + e.getMessage(), e);
             } finally {
                 if (connectionStrategy != null) {
                     connectionStrategy.returnConnection(instance, connection);
@@ -236,11 +229,8 @@ public class JQuickThriftClient {
                     instanceCache.put(serviceName, new java.util.ArrayList<>(instances));
                 }
             }
-
             if (instances != null && !instances.isEmpty()) {
-                instances = instances.stream()
-                        .filter(JQuickServiceInstance::isHealthy)
-                        .collect(Collectors.toList());
+                instances = instances.stream().filter(JQuickServiceInstance::isHealthy).collect(Collectors.toList());
             }
 
             return instances;

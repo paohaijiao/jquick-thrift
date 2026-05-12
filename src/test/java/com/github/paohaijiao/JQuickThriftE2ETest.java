@@ -6,8 +6,7 @@ import com.example.thrift.demo.UserService;
 import com.example.thrift.demo.UserServiceImpl;
 import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.config.JQuickConnectionConfig;
-import com.github.paohaijiao.domain.JQuickServiceInstance;
-import com.github.paohaijiao.pool.JQuickServiceDiscovery;
+import com.github.paohaijiao.discovery.impl.JQuickInMemoryServiceDiscovery;
 import com.github.paohaijiao.server.JQuickThriftServer;
 import org.junit.After;
 import org.junit.Before;
@@ -15,8 +14,6 @@ import org.junit.Test;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.Assert.*;
@@ -28,61 +25,16 @@ import static org.junit.Assert.*;
 public class JQuickThriftE2ETest {
 
     private JQuickThriftServer server;
+
     private JQuickThriftClient client;
+
     private static final int TEST_PORT = 9090;
+
     private static final String SERVICE_NAME = "UserService";
 
-    /**
-     * 内存服务发现实现（用于测试）
-     */
-    private static class InMemoryServiceDiscovery implements JQuickServiceDiscovery {
-        private final Map<String, List<JQuickServiceInstance>> serviceMap = new ConcurrentHashMap<>();
-        private final List<ServiceChangeListener> listeners = new CopyOnWriteArrayList<>();
 
-        public void registerInstance(String serviceName, String host, int port) {
-            JQuickServiceInstance instance = new JQuickServiceInstance(serviceName, host, port);
-            serviceMap.computeIfAbsent(serviceName, k -> new CopyOnWriteArrayList<>()).add(instance);
-            notifyListeners(serviceName);
-        }
 
-        public void registerInstance(String serviceName, String host, int port, int weight) {
-            JQuickServiceInstance instance = new JQuickServiceInstance(serviceName, host, port, weight);
-            serviceMap.computeIfAbsent(serviceName, k -> new CopyOnWriteArrayList<>()).add(instance);
-            notifyListeners(serviceName);
-        }
-
-        private void notifyListeners(String serviceName) {
-            List<JQuickServiceInstance> instances = getInstances(serviceName);
-            for (ServiceChangeListener listener : listeners) {
-                listener.onChange(serviceName, instances);
-            }
-        }
-
-        @Override
-        public List<JQuickServiceInstance> getInstances(String serviceName) {
-            return serviceMap.getOrDefault(serviceName, new CopyOnWriteArrayList<>());
-        }
-
-        @Override
-        public void subscribe(String serviceName, ServiceChangeListener listener) {
-            listeners.add(listener);
-            // 立即通知当前状态
-            listener.onChange(serviceName, getInstances(serviceName));
-        }
-
-        @Override
-        public void unsubscribe(String serviceName, ServiceChangeListener listener) {
-            listeners.remove(listener);
-        }
-
-        @Override
-        public void close() {
-            serviceMap.clear();
-            listeners.clear();
-        }
-    }
-
-    private InMemoryServiceDiscovery serviceDiscovery;
+    private JQuickInMemoryServiceDiscovery serviceDiscovery;
 
     @Before
     public void setUp() throws Exception {
@@ -90,7 +42,7 @@ public class JQuickThriftE2ETest {
         System.out.println("端到端集成测试开始");
         System.out.println("========================================\n");
         // 1. 创建服务发现
-        serviceDiscovery = new InMemoryServiceDiscovery();
+        serviceDiscovery = new JQuickInMemoryServiceDiscovery();
         // 2. 启动 Thrift 服务端
         server = new JQuickThriftServer.Builder()
                 .port(TEST_PORT)
@@ -140,9 +92,7 @@ public class JQuickThriftE2ETest {
     @Test
     public void testGetServiceProxy() {
         System.out.println("【测试1】获取服务代理");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
-
         assertNotNull("服务代理不应为null", proxy);
         System.out.println("✓ 成功获取服务代理: " + proxy.getClass().getName());
     }

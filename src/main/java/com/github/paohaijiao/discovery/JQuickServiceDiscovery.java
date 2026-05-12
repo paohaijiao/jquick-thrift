@@ -1,4 +1,4 @@
-package com.github.paohaijiao.pool;
+package com.github.paohaijiao.discovery;
 
 import com.github.paohaijiao.domain.JQuickServiceInstance;
 import com.github.paohaijiao.spi.anno.Priority;
