@@ -6,7 +6,7 @@
         <artifactId>javelin</artifactId>
         <version>1.6.0</version>
     </parent>
-    <version>1.1.0</version>
+    <version>1.2.0</version>
     <artifactId>jquick-thrift</artifactId>
     <name>jquick-thrift</name>
     <properties>
@@ -168,6 +168,7 @@
                         <goals>
                             <goal>jar-no-fork</goal>
                         </goals>
+                        <phase>package</phase>
                     </execution>
                 </executions>
             </plugin>
