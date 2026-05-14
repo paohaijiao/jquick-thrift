@@ -1,6 +1,8 @@
 package com.github.paohaijiao.loadBalance.impl;
 
 import com.github.paohaijiao.domain.JQuickServiceInstance;
+import com.github.paohaijiao.domain.JQuickServiceInstanceMetrics;
+import com.github.paohaijiao.exception.JAssert;
 import com.github.paohaijiao.loadBalance.JQuickLoadBalancer;
 
 import java.util.Comparator;
@@ -16,9 +18,11 @@ public class JQuickLeastConnectionLoadBalancer implements JQuickLoadBalancer {
     }
 
     private double calculateLoadScore(JQuickServiceInstance instance) {
-        double load = instance.getActiveRequests() * 0.4;
-        load += instance.getCpuUsage() * 0.3;
-        load += (instance.getQueueSize() / 100.0) * 0.3;
+        JAssert.notNull(instance.getMetrics(), "the Least Load Balancer  require metric not null");
+        JQuickServiceInstanceMetrics metrics=instance.getMetrics();
+        double load = metrics.getActiveRequests() * 0.4;
+        load += metrics.getCpuUsage() * 0.3;
+        load += (metrics.getQueueSize() / 100.0) * 0.3;
         return load;
     }
 }

@@ -21,15 +21,8 @@ public class JQuickServiceInstance {
 
     private boolean healthy;
 
-    private double cpuUsage;
+    private JQuickServiceInstanceMetrics metrics;
 
-    private double memoryUsage;
-
-    private int activeRequests;
-
-    private long queueSize;
-
-    private long lastReportTime;
 
     private Map<String, String> metadata;
 
