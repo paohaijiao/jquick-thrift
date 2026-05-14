@@ -4,8 +4,8 @@ import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.config.*;
 import com.github.paohaijiao.console.JConsole;
 import com.github.paohaijiao.discovery.JQuickServiceDiscovery;
-import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
-import com.github.paohaijiao.loadBalence.impl.JQuickRoundRobinLoadBalancer;
+import com.github.paohaijiao.loadBalance.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalance.impl.JQuickRoundRobinLoadBalancer;
 import com.github.paohaijiao.manager.JQuickDynamicFactory;
 import com.github.paohaijiao.server.JQuickThriftServer;
 
@@ -181,9 +181,11 @@ public class JQuickDynamicBuilder {
             case "roundRobin":
                 return new JQuickRoundRobinLoadBalancer();
             case "random":
-                return new com.github.paohaijiao.loadBalence.impl.JQuickRandomLoadBalancer();
+                return new com.github.paohaijiao.loadBalance.impl.JQuickRandomLoadBalancer();
             case "weighted":
-                return new com.github.paohaijiao.loadBalence.impl.JQuickWeightedLoadBalancer();
+                return new com.github.paohaijiao.loadBalance.impl.JQuickWeightedLoadBalancer();
+            case "least":
+                return new com.github.paohaijiao.loadBalance.impl.JQuickLeastConnectionLoadBalancer();
             default:
                 return new JQuickRoundRobinLoadBalancer();
         }

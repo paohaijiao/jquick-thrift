@@ -1,7 +1,7 @@
-package com.github.paohaijiao.loadBalence.impl;
+package com.github.paohaijiao.loadBalance.impl;
 
 import com.github.paohaijiao.domain.JQuickServiceInstance;
-import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalance.JQuickLoadBalancer;
 import com.github.paohaijiao.spi.anno.Priority;
 
 import java.util.List;

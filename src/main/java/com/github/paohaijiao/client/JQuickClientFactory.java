@@ -3,7 +3,7 @@ package com.github.paohaijiao.client;
 import com.github.paohaijiao.config.JQuickClientConfig;
 import com.github.paohaijiao.config.JQuickConnectionConfig;
 import com.github.paohaijiao.discovery.JQuickServiceDiscovery;
-import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalance.JQuickLoadBalancer;
 import com.github.paohaijiao.pool.JQuickConnectionStrategy;
 
 /**

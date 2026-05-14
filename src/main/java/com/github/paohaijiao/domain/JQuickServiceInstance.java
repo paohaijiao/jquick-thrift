@@ -21,6 +21,16 @@ public class JQuickServiceInstance {
 
     private boolean healthy;
 
+    private double cpuUsage;
+
+    private double memoryUsage;
+
+    private int activeRequests;
+
+    private long queueSize;
+
+    private long lastReportTime;
+
     private Map<String, String> metadata;
 
     public JQuickServiceInstance(String serviceName, String host, int port) {

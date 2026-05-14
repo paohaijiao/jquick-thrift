@@ -4,10 +4,8 @@ import com.example.thrift.demo.*;
 import com.github.paohaijiao.client.JQuickThriftClient;
 import com.github.paohaijiao.config.*;
 import com.github.paohaijiao.discovery.impl.JQuickInMemoryServiceDiscovery;
-import com.github.paohaijiao.domain.JQuickServiceInstance;
-import com.github.paohaijiao.discovery.JQuickServiceDiscovery;
-import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
-import com.github.paohaijiao.loadBalence.impl.JQuickRoundRobinLoadBalancer;
+import com.github.paohaijiao.loadBalance.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalance.impl.JQuickRoundRobinLoadBalancer;
 import com.github.paohaijiao.manager.JQuickDynamicFactory;
 import com.github.paohaijiao.protocol.JQuickBinaryProtocolFactory;
 import com.github.paohaijiao.server.JQuickThriftServer;
@@ -16,10 +14,6 @@ import com.github.paohaijiao.transport.JQuickStandardTransportFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
 
 import static org.junit.Assert.*;
 

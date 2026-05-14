@@ -1,4 +1,4 @@
-package com.github.paohaijiao.loadBalence;
+package com.github.paohaijiao.loadBalance;
 
 import com.github.paohaijiao.domain.JQuickServiceInstance;
 import com.github.paohaijiao.spi.anno.Priority;
