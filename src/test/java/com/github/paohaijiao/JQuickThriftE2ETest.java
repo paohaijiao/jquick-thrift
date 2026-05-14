@@ -5,9 +5,15 @@ import com.example.thrift.demo.User;
 import com.example.thrift.demo.UserService;
 import com.example.thrift.demo.UserServiceImpl;
 import com.github.paohaijiao.client.JQuickThriftClient;
-import com.github.paohaijiao.config.JQuickConnectionConfig;
+import com.github.paohaijiao.config.*;
 import com.github.paohaijiao.discovery.impl.JQuickInMemoryServiceDiscovery;
+import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalence.impl.JQuickRoundRobinLoadBalancer;
+import com.github.paohaijiao.manager.JQuickDynamicFactory;
+import com.github.paohaijiao.protocol.JQuickBinaryProtocolFactory;
 import com.github.paohaijiao.server.JQuickThriftServer;
+import com.github.paohaijiao.server.impl.JQuickThreadPoolServer;
+import com.github.paohaijiao.transport.JQuickStandardTransportFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -43,28 +49,35 @@ public class JQuickThriftE2ETest {
         System.out.println("========================================\n");
         // 1. 创建服务发现
         serviceDiscovery = new JQuickInMemoryServiceDiscovery();
-        // 2. 启动 Thrift 服务端
-        server = new JQuickThriftServer.Builder()
-                .port(TEST_PORT)
-                .registerService(SERVICE_NAME, new UserServiceImpl())
-                .build();
+        // 2. 启动 Thrift 服务端 - 使用现有构造函数
+        JQuickServerConfig serverConfig = JQuickServerConfig.threadPool(TEST_PORT);
+        JQuickProtocolConfig protocolConfig = JQuickProtocolConfig.binary();
+        JQuickTransportConfig transportConfig = JQuickTransportConfig.standard();
+        // 创建线程池服务器
+        server = new JQuickThreadPoolServer(serverConfig, new JQuickBinaryProtocolFactory(protocolConfig), new JQuickStandardTransportFactory(transportConfig));
+
+        // 注册服务
+        server.registerService(SERVICE_NAME, new UserServiceImpl());
         server.start();
+
         // 等待服务启动
         Thread.sleep(1000);
         System.out.println("✓ 服务端已启动，端口: " + TEST_PORT);
+
         // 3. 注册服务实例到服务发现
         serviceDiscovery.registerInstance(SERVICE_NAME, "localhost", TEST_PORT);
         System.out.println("✓ 服务实例已注册: localhost:" + TEST_PORT);
 
-        // 4. 创建客户端
-        JQuickConnectionConfig config = JQuickConnectionConfig.defaultConfig();
-        config.setTimeout(5000);
-        config.setMaxRetries(3);
+        // 4. 创建客户端 - 使用 JQuickDynamicFactory 或直接创建
+        JQuickClientConfig clientConfig = JQuickClientConfig.pooled();
+        JQuickConnectionConfig connectionConfig = JQuickConnectionConfig.defaultConfig();
+        connectionConfig.setTimeout(5000);
+        connectionConfig.setMaxRetries(3);
 
-        client = new JQuickThriftClient.Builder()
-                .serviceDiscovery(serviceDiscovery)
-                .connectionConfig(config)
-                .build();
+        JQuickLoadBalancer loadBalancer = new JQuickRoundRobinLoadBalancer();
+
+        JQuickDynamicFactory factory = new JQuickDynamicFactory();
+        client = factory.createClient(clientConfig, serviceDiscovery, loadBalancer, null, connectionConfig);
 
         System.out.println("✓ 客户端已创建\n");
     }
@@ -417,9 +430,7 @@ public class JQuickThriftE2ETest {
     @Test
     public void testConnectionPoolEffect() throws Exception {
         System.out.println("【测试14】连接池效果测试");
-
         UserService.Iface proxy = client.getService(UserService.Iface.class, SERVICE_NAME);
-
         // 执行100次调用
         int callCount = 100;
         long startTime = System.currentTimeMillis();
@@ -431,12 +442,10 @@ public class JQuickThriftE2ETest {
         long endTime = System.currentTimeMillis();
 
         Map<String, Object> stats = client.getStats();
-
         System.out.println("连接池统计:");
         System.out.println("  调用次数: " + callCount);
         System.out.println("  总耗时: " + (endTime - startTime) + "ms");
         System.out.println("  平均耗时: " + (endTime - startTime) / callCount + "ms");
-
         if (stats.containsKey("activeConnections")) {
             System.out.println("  活跃连接数: " + stats.get("activeConnections"));
         }

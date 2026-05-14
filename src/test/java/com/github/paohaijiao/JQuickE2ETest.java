@@ -46,6 +46,7 @@ public class JQuickE2ETest {
         // 创建并启动服务端
         JQuickServerConfig serverConfig = JQuickServerConfig.threadPool(TEST_PORT);
         serverConfig.setMaxWorkerThreads(50);
+        factory.getActiveTransportConfig().setTransportType("standard");
         server = factory.createServer(serverConfig);
         server.registerService(SERVICE_NAME, new UserServiceImpl());
         server.start();

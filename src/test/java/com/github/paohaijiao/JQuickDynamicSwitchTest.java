@@ -3,13 +3,16 @@ package com.github.paohaijiao;
 import com.example.thrift.demo.UserService;
 import com.example.thrift.demo.UserServiceImpl;
 import com.github.paohaijiao.client.JQuickThriftClient;
-import com.github.paohaijiao.config.JQuickClientConfig;
-import com.github.paohaijiao.config.JQuickConnectionConfig;
-import com.github.paohaijiao.config.JQuickServerConfig;
+import com.github.paohaijiao.config.*;
 import com.github.paohaijiao.console.JConsole;
 import com.github.paohaijiao.discovery.impl.JQuickInMemoryServiceDiscovery;
+import com.github.paohaijiao.loadBalence.JQuickLoadBalancer;
+import com.github.paohaijiao.loadBalence.impl.JQuickRoundRobinLoadBalancer;
 import com.github.paohaijiao.manager.JQuickDynamicFactory;
+import com.github.paohaijiao.protocol.JQuickBinaryProtocolFactory;
 import com.github.paohaijiao.server.JQuickThriftServer;
+import com.github.paohaijiao.server.impl.JQuickThreadPoolServer;
+import com.github.paohaijiao.transport.JQuickStandardTransportFactory;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -38,21 +41,33 @@ public class JQuickDynamicSwitchTest {
 
     @Before
     public void setUp() throws Exception {
-        console.info("========== 动态切换测试开始 ==========");
-        factory = new JQuickDynamicFactory();
+        console.info("初始化测试环境");
         discovery = new JQuickInMemoryServiceDiscovery();
-        // 初始化服务端
-        JQuickServerConfig serverConfig = JQuickServerConfig.threadPool(TEST_PORT);
-        server = factory.createServer(serverConfig);
+        discovery.registerInstance("UserService", "localhost", 9090);
+        JQuickServerConfig serverConfig = new JQuickServerConfig();
+        serverConfig.setPort(9090);
+        serverConfig.setServerType("threadpool");
+        JQuickProtocolConfig protocolConfig = new JQuickProtocolConfig();
+        protocolConfig.setType("binary");
+        JQuickTransportConfig transportConfig = new JQuickTransportConfig();
+        transportConfig.setTransportType("standard");
+        JQuickBinaryProtocolFactory protocolFactory = new JQuickBinaryProtocolFactory(protocolConfig);
+        JQuickStandardTransportFactory transportFactory = new JQuickStandardTransportFactory(transportConfig);
+        server = new JQuickThreadPoolServer(serverConfig, protocolFactory, transportFactory);
         server.registerService("UserService", new UserServiceImpl());
         server.start();
-        discovery.registerInstance("UserService", "localhost", TEST_PORT);
-        // 初始化客户端
+        Thread.sleep(1000); // 等待服务启动
         JQuickClientConfig clientConfig = JQuickClientConfig.pooled();
+        clientConfig.setMultiplexed(true);
         JQuickConnectionConfig connectionConfig = JQuickConnectionConfig.defaultConfig();
-        client = factory.createClient(clientConfig, discovery, null, null, connectionConfig);
-        Thread.sleep(1000);
-        console.info("初始化完成");
+        connectionConfig.setProtocolType("binary");
+        connectionConfig.setTimeout(30000);
+        JQuickLoadBalancer loadBalancer = new JQuickRoundRobinLoadBalancer();
+        factory = new JQuickDynamicFactory();
+        transportConfig.setTransportType("standard");  // 或 "fr
+        client = factory.createClient(clientConfig, discovery, loadBalancer, null, connectionConfig);
+        assertNotNull("客户端初始化失败", client);
+        console.info("测试环境初始化完成");
     }
 
     @After
@@ -85,6 +100,7 @@ public class JQuickDynamicSwitchTest {
         console.info("Compact 协议调用成功: " + result2);
         // 切换到 JSON 协议
         console.info("切换到 JSON 协议...");
+        factory.getActiveTransportConfig().setTransportType("standard");
         factory.switchProtocol("json");
         Thread.sleep(2000);
         String result3 = proxy.sayHello("Test JSON");
@@ -130,6 +146,7 @@ public class JQuickDynamicSwitchTest {
         console.info("切换到 NonBlocking 服务器...");
         JQuickServerConfig config = JQuickServerConfig.nonBlocking(TEST_PORT);
         config.setMaxWorkerThreads(50);
+        factory.getActiveTransportConfig().setTransportType("standard");
         factory.switchServer("nonblocking", config);
         Thread.sleep(3000);
         String result2 = proxy.sayHello("NonBlocking Server");

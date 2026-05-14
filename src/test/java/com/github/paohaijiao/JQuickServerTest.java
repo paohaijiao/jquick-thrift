@@ -43,6 +43,7 @@ public class JQuickServerTest {
     public void testThreadPoolServerCreation() throws Exception {
         console.info("测试线程池服务器创建");
         JQuickServerConfig config = JQuickServerConfig.threadPool(TEST_PORT);
+        factory.getActiveTransportConfig().setTransportType("standard");
         JQuickThriftServer server = factory.createServer(config);
         assertNotNull("服务器不应为 null", server);
         assertEquals("服务器类型应为 threadpool", "threadpool", server.getServerType());
@@ -53,8 +54,8 @@ public class JQuickServerTest {
     @Test
     public void testNonBlockingServerCreation() throws Exception {
         console.info("测试非阻塞服务器创建");
-
         JQuickServerConfig config = JQuickServerConfig.nonBlocking(TEST_PORT + 1);
+        factory.getActiveTransportConfig().setTransportType("standard");
         JQuickThriftServer server = factory.createServer(config);
         assertNotNull("服务器不应为 null", server);
         assertEquals("服务器类型应为 nonblocking", "nonblocking", server.getServerType());
@@ -65,6 +66,7 @@ public class JQuickServerTest {
     public void testHsHaServerCreation() throws Exception {
         console.info("测试 HsHa 服务器创建");
         JQuickServerConfig config = JQuickServerConfig.hsHa(TEST_PORT + 2);
+        factory.getActiveTransportConfig().setTransportType("standard");
         JQuickThriftServer server = factory.createServer(config);
         assertNotNull("服务器不应为 null", server);
         assertEquals("服务器类型应为 hsha", "hsha", server.getServerType());
@@ -75,6 +77,7 @@ public class JQuickServerTest {
     public void testThreadedSelectorServerCreation() throws Exception {
         console.info("测试 ThreadedSelector 服务器创建");
         JQuickServerConfig config = JQuickServerConfig.selector(TEST_PORT + 3);
+        factory.getActiveTransportConfig().setTransportType("standard");
         JQuickThriftServer server = factory.createServer(config);
         assertNotNull("服务器不应为 null", server);
         assertEquals("服务器类型应为 selector", "selector", server.getServerType());
@@ -85,6 +88,7 @@ public class JQuickServerTest {
     public void testServerStartAndStop() throws Exception {
         console.info("测试服务器启动和停止");
         JQuickServerConfig config = JQuickServerConfig.threadPool(TEST_PORT);
+        factory.getActiveTransportConfig().setTransportType("standard");
         server = factory.createServer(config);
         server.registerService("UserService", new UserServiceImpl());
         server.start();
@@ -101,6 +105,7 @@ public class JQuickServerTest {
     public void testServiceRegistration() throws Exception {
         console.info("测试服务注册");
         JQuickServerConfig config = JQuickServerConfig.threadPool(TEST_PORT);
+        factory.getActiveTransportConfig().setTransportType("standard");
         server = factory.createServer(config);
         server.registerService("UserService", new UserServiceImpl());
         Map<String, Object> services = server.getRegisteredServices();
@@ -113,6 +118,7 @@ public class JQuickServerTest {
     public void testMultipleServiceRegistration() throws Exception {
         console.info("测试多服务注册");
         JQuickServerConfig config = JQuickServerConfig.threadPool(TEST_PORT);
+        factory.getActiveTransportConfig().setTransportType("standard");
         server = factory.createServer(config);
         server.registerService("UserService", new UserServiceImpl());
         server.registerService("AdminService", new UserServiceImpl());

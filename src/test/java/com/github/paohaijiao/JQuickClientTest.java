@@ -2,9 +2,7 @@ package com.github.paohaijiao;
 
 import com.example.thrift.demo.UserService;
 import com.github.paohaijiao.client.JQuickThriftClient;
-import com.github.paohaijiao.config.JQuickClientConfig;
-import com.github.paohaijiao.config.JQuickConnectionConfig;
-import com.github.paohaijiao.config.JQuickServerConfig;
+import com.github.paohaijiao.config.*;
 import com.github.paohaijiao.console.JConsole;
 import com.github.paohaijiao.discovery.impl.JQuickInMemoryServiceDiscovery;
 import com.github.paohaijiao.domain.JQuickServiceInstance;
@@ -43,17 +41,17 @@ public class JQuickClientTest {
 
     @Before
     public void setUp() throws Exception {
-        console.info("========== 客户端测试开始 ==========");
-        factory = new JQuickDynamicFactory();
+        console.info("初始化测试环境");
         discovery = new JQuickInMemoryServiceDiscovery();
-        // 启动服务端
-        JQuickServerConfig serverConfig = JQuickServerConfig.threadPool(TEST_PORT);
-        server = factory.createServer(serverConfig);
-        server.registerService("UserService", new com.example.thrift.demo.UserServiceImpl());
-        server.start();
-        discovery.registerInstance("UserService", "localhost", TEST_PORT);
-        Thread.sleep(1000);
-        console.info("服务端已启动，端口: " + TEST_PORT);
+        discovery.registerInstance("TestService", "localhost", 9090);
+        factory = new JQuickDynamicFactory();
+        JQuickTransportConfig transportConfig = factory.getActiveTransportConfig();
+        transportConfig.setTransportType("standard");  // 或 "framed"
+        JQuickProtocolConfig protocolConfig = factory.getActiveProtocolConfig();
+        if (protocolConfig.getType() == null) {
+            protocolConfig.setType("binary");
+        }
+        console.info("测试环境初始化完成");
     }
 
     @After
